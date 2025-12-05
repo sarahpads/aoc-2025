@@ -1,50 +1,62 @@
+from collections import deque
 from pathlib import Path
 
-PATH = Path(__file__).with_name("input.txt")
 
-results = {}
-rolls = 0
+OFFSETS = [
+    (-1, -1), (-1, 0), (-1, 1),
+    (0, -1),           (0, 1),
+    (1, -1),  (1, 0),  (1, 1),
+]
 
-def increment_neighbour(key):
-  if (results.get(key) is not None):
-    results[key] += 1
-    return 1
-  else:
-    return 0
+def load_rows(path: Path) -> list[str]:
+    with path.open() as fh:
+        return [line.rstrip("\n") for line in fh]
 
-def remove_rolls():
-  doomed = [pos for pos in results.keys() if results.get(pos) < 4]
+def parse_rolls(rows: list[str]) -> set[tuple[int, int]]:
+    return {
+        (x, y)
+        for y, row in enumerate(rows)
+        for x, ch in enumerate(row)
+        if ch == "@"
+    }
 
-  for key in doomed:
-    results.pop(key)
+def count_neighbours(rolls: set[tuple[int, int]], x: int, y: int) -> int:
+    return sum((x + dx, y + dy) in rolls for dx, dy in OFFSETS)
 
-  return doomed
+def count_accessible(rolls: set[tuple[int, int]]) -> int:
+    return sum(1 for x, y in rolls if count_neighbours(rolls, x, y) < 4)
 
-def count_neighbours(x, y):
-  count = 0
-  count += increment_neighbour((x - 1, y))
-  count += increment_neighbour((x - 1, y - 1))
-  count += increment_neighbour((x, y - 1))
-  count += increment_neighbour((x + 1, y - 1))
-  return count
+def total_removed(rolls: set[tuple[int, int]]) -> int:
+    neighbours = {pos: count_neighbours(rolls, *pos) for pos in rolls}
+    queue = deque(pos for pos, count in neighbours.items() if count < 4)
+    removed = 0
 
-with open(PATH) as input:
-  for y, line in enumerate(input):
-    for x, char in enumerate(line.strip('\n')):
-      if (char != "@"):
-        continue
+    while queue:
+        pos = queue.popleft()
+        if pos not in rolls:
+            continue
+        if neighbours[pos] >= 4:
+            continue
 
-      results[(x, y)] = count_neighbours(x, y)
+        rolls.remove(pos)
+        removed += 1
 
-  removed = remove_rolls()
+        x, y = pos
+        for dx, dy in OFFSETS:
+            neighbour = (x + dx, y + dy)
+            if neighbour in rolls:
+                neighbours[neighbour] -= 1
+                if neighbours[neighbour] < 4:
+                    queue.append(neighbour)
 
-  while (len(removed)):
-    rolls += len(removed)
+    return removed
 
-    for key in results.keys():
-      x, y = key
-      results[key] = count_neighbours(x, y)
+def main() -> None:
+    path = Path(__file__).with_name("input.txt")
+    rows = load_rows(path)
+    rolls = parse_rolls(rows)
+    part2 = total_removed(set(rolls))
+    print(part2)
 
-    removed = remove_rolls()
-
-print(rolls)
+if __name__ == "__main__":
+    main()
